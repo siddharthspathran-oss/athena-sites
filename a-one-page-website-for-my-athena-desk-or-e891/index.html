@@ -3,72 +3,643 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Athena Desk Orb</title>
+<title>Athena Desk Orb – Your AI assistant, embodied on your desk</title>
+<meta name="description" content="Athena Desk Orb: an ESP32 desk orb with a 16-LED ring, OLED, mmWave presence radar, light, climate and sound sensing, talking to Athena over MQTT.">
+<meta name="theme-color" content="#07060b">
+<script>document.documentElement.classList.add('js')</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+      colors: { ink: '#07060b', violet: '#8f72ff', amber: '#ffb454', fg: '#ece9f8', mute: '#a9a5c2' }
+    } }
+  }
+</script>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+
 <style>
-  :root { --bg:#0b0d14; --card:#141824; --text:#e6e9f2; --muted:#8b93a7; --glow:#7c5cff; --glow2:#29d3ff; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 system-ui,sans-serif; }
-  main { max-width:860px; margin:0 auto; padding:0 20px 60px; }
-  header { text-align:center; padding:70px 0 30px; }
-  .orb { width:120px; height:120px; margin:0 auto 28px; border-radius:50%;
-    background:radial-gradient(circle at 35% 30%, #fff8, var(--glow) 40%, var(--glow2) 100%);
-    box-shadow:0 0 40px var(--glow), 0 0 100px var(--glow2); animation:pulse 4s ease-in-out infinite; }
-  @keyframes pulse { 50% { box-shadow:0 0 60px var(--glow), 0 0 140px var(--glow2); } }
-  @media (prefers-reduced-motion:reduce) { .orb { animation:none; } }
-  h1 { margin:0 0 10px; font-size:2.4rem; }
-  header p { color:var(--muted); max-width:560px; margin:0 auto; }
-  h2 { margin-top:56px; border-bottom:1px solid #222a3d; padding-bottom:8px; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
-  .card { background:var(--card); border:1px solid #222a3d; border-radius:12px; padding:18px; }
-  .card h3 { margin:0 0 6px; color:var(--glow2); font-size:1.05rem; }
-  .card p { margin:0; color:var(--muted); font-size:.95rem; }
-  table { width:100%; border-collapse:collapse; background:var(--card); border-radius:12px; overflow:hidden; }
-  th, td { text-align:left; padding:12px 14px; border-bottom:1px solid #222a3d; }
-  th { color:var(--glow2); font-size:.85rem; text-transform:uppercase; letter-spacing:.05em; }
-  tr:last-child td { border-bottom:0; }
-  td:nth-child(2) { text-align:center; }
-  th:nth-child(2) { text-align:center; }
-  td:last-child { color:var(--muted); }
-  footer { text-align:center; color:var(--muted); font-size:.85rem; margin-top:50px; }
+  html { scroll-behavior: smooth; background: #07060b; }
+  body { background: #07060b; font-feature-settings: "tnum" 1, "cv11" 1; }
+  :focus-visible { outline: 2px solid #ffb454; outline-offset: 3px; border-radius: 6px; }
+
+  /* background: glows + grid + noise */
+  .bg-fx { position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(60rem 40rem at 82% -8%, rgba(143,114,255,.20), transparent 60%),
+      radial-gradient(46rem 34rem at -8% 34%, rgba(255,180,84,.08), transparent 60%); }
+  .bg-fx::before { content: ""; position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size: 48px 48px;
+    -webkit-mask-image: radial-gradient(ellipse at 50% 15%, #000 15%, transparent 72%);
+            mask-image: radial-gradient(ellipse at 50% 15%, #000 15%, transparent 72%); }
+  .bg-fx::after { content: ""; position: absolute; inset: 0; opacity: .08;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+
+  /* glassmorphism */
+  .glass { background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.025));
+    border: 1px solid rgba(255,255,255,.09); border-radius: 1.25rem;
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 24px 50px -28px rgba(0,0,0,.85); }
+  .chip { display: inline-block; font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    padding: .35rem .6rem; border-radius: 999px; border: 1px solid rgba(255,255,255,.14); color: #d6d0f5; }
+  .eyebrow { font-size: .75rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #ffb454; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  /* scroll reveal (only when JS is on) */
+  .js .reveal { opacity: 0; transform: translateY(22px);
+    transition: opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); transition-delay: var(--d, 0ms); }
+  .js .reveal.in { opacity: 1; transform: none; }
+
+  /* hero orb stage */
+  #orb-stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+  #orb-stage canvas:active { cursor: grabbing; }
+  .css-orb { position: absolute; left: 50%; top: 46%; width: min(58%, 260px); aspect-ratio: 1;
+    transform: translate(-50%, -50%); border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.55), rgba(255,180,84,.6) 28%, rgba(143,114,255,.75) 62%, rgba(55,35,130,.85));
+    box-shadow: 0 0 60px 10px rgba(143,114,255,.45), 0 0 150px 40px rgba(255,180,84,.2);
+    animation: orbpulse 4s ease-in-out infinite; transition: opacity .6s ease; }
+  @keyframes orbpulse { 50% { filter: brightness(1.28); } }
+  .gl-ready .css-orb { opacity: 0; }
+  #orb-wrap:not(.gl-ready) .pills { visibility: hidden; }
+  .pill { border: 1px solid rgba(255,255,255,.14); border-radius: 999px; padding: .4rem .85rem; font-size: .75rem;
+    font-weight: 600; letter-spacing: .06em; color: #cfc9ee; background: rgba(255,255,255,.04); transition: .2s; }
+  .pill:hover { border-color: rgba(143,114,255,.7); }
+  .pill[aria-pressed="true"] { background: rgba(143,114,255,.22); border-color: #8f72ff; color: #fff; }
+
+  /* diagram connectors */
+  .link { display: flex; flex-direction: column; align-items: center; gap: .35rem; color: #8f72ff; }
+  .link span { font-size: .7rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #a9a5c2; }
+  .lane-amber { color: #ffb454; } .lane-violet { color: #8f72ff; }
+
+  table { font-variant-numeric: tabular-nums; }
+  th { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: #a9a5c2; font-weight: 600; }
+  tbody tr { border-top: 1px solid rgba(255,255,255,.07); }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .js .reveal { opacity: 1; transform: none; transition: none; }
+    .css-orb { animation: none; }
+  }
 </style>
 </head>
-<body>
-<main>
-  <header>
-    <div class="orb" role="img" aria-label="Glowing orb"></div>
-    <h1>Athena Desk Orb</h1>
-    <p>A glowing ESP32 orb that sits on your desk and acts as a little ambient companion for your PC. It notices when you're there, adapts to the room's light, and talks to your computer over MQTT.</p>
-  </header>
 
-  <h2>Features</h2>
-  <div class="grid">
-    <div class="card"><h3>LED ring glow</h3><p>Colour and brightness show status and mood, driven by messages from the PC.</p></div>
-    <div class="card"><h3>OLED readout</h3><p>Small display for time, status text and notifications.</p></div>
-    <div class="card"><h3>Presence sensing</h3><p>A radar sensor detects when you sit down or walk away, even when you're sitting still.</p></div>
-    <div class="card"><h3>Ambient light aware</h3><p>The light sensor dims the orb at night and brightens it by day.</p></div>
-    <div class="card"><h3>MQTT link</h3><p>Publishes sensor data and subscribes to commands, so the PC and orb stay in sync over Wi-Fi.</p></div>
-  </div>
+<body class="font-sans text-fg antialiased tabular-nums">
+<div class="bg-fx" aria-hidden="true"></div>
 
-  <h2>Parts list</h2>
-  <table>
-    <thead><tr><th>Part</th><th>Qty</th><th>Role</th></tr></thead>
-    <tbody>
-      <tr><td>ESP32 dev board</td><td>1</td><td>Brains, Wi-Fi, MQTT client</td></tr>
-      <tr><td>WS2812B 16-LED ring</td><td>1</td><td>The glow</td></tr>
-      <tr><td>0.96&Prime; I²C OLED (SSD1306)</td><td>1</td><td>Status and text</td></tr>
-      <tr><td>GY-302 BH1750 light sensor</td><td>1</td><td>Ambient brightness</td></tr>
-      <tr><td>HLK-LD2410C radar</td><td>1</td><td>Presence detection</td></tr>
-      <tr><td>BME280</td><td>1</td><td>Temperature, humidity, pressure</td></tr>
-      <tr><td>INMP441 I²S mic</td><td>1</td><td>Sound input</td></tr>
-      <tr><td>Mini MP1584 buck (12 V to 5 V)</td><td>1</td><td>Powers the ESP32 and LED ring</td></tr>
-      <tr><td>IRLZ44N MOSFET</td><td>1</td><td>Switches the 12 V warm-white COB strip</td></tr>
-      <tr><td>12 V warm-white COB strip</td><td>1</td><td>Warm ambient light</td></tr>
-      <tr><td>12 V 5 A adapter</td><td>1</td><td>Main power supply</td></tr>
-      <tr><td>PBS-33B 12 mm button</td><td>1</td><td>User input</td></tr>
-    </tbody>
-  </table>
+<!-- arrow symbols reused by the diagrams -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="ar-h2" viewBox="0 0 64 16"><path d="M4 8h56M9 3 4 8l5 5M55 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ar-v2" viewBox="0 0 16 40"><path d="M8 4v32M3 9l5-5 5 5M3 31l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ar-h1" viewBox="0 0 64 16"><path d="M4 8h56M52 3l8 5-8 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ar-v1" viewBox="0 0 16 40"><path d="M8 4v32M3 29l5 7 5-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
 
-  <footer>Athena Desk Orb · ESP32 + MQTT</footer>
+<header class="sticky top-0 z-40 border-b border-white/5 bg-ink/65 backdrop-blur-md">
+  <nav class="mx-auto flex max-w-6xl items-center justify-between px-5 py-3" aria-label="Main">
+    <a href="#top" class="flex items-center gap-2 font-semibold tracking-tight">
+      <span class="h-3.5 w-3.5 rounded-full bg-gradient-to-br from-amber to-violet shadow-[0_0_14px_3px_rgba(143,114,255,.6)]"></span>
+      Athena Desk Orb
+    </a>
+    <div class="hidden items-center gap-6 text-sm text-mute md:flex">
+      <a class="hover:text-fg" href="#what">What it does</a>
+      <a class="hover:text-fg" href="#how">How it works</a>
+      <a class="hover:text-fg" href="#pinout">Pinout</a>
+      <a class="hover:text-fg" href="#power">Power</a>
+      <a class="hover:text-fg" href="#parts">Parts</a>
+    </div>
+    <a href="#parts" class="rounded-full border border-white/15 px-3.5 py-1.5 text-sm font-medium hover:border-violet md:hidden">Parts list</a>
+  </nav>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="mx-auto grid max-w-6xl items-center gap-8 px-5 pb-16 pt-10 sm:pt-14 lg:grid-cols-2 lg:gap-6 lg:pt-16">
+    <div>
+      <p class="eyebrow reveal">ESP32 · MQTT · mmWave</p>
+      <h1 class="reveal mt-4 text-5xl font-extrabold leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl" style="--d:60ms">
+        Athena Desk <span class="bg-gradient-to-r from-amber to-violet bg-clip-text text-transparent">Orb</span>
+      </h1>
+      <p class="reveal mt-5 text-xl font-medium text-fg sm:text-2xl" style="--d:120ms">Your AI assistant, embodied on your desk.</p>
+      <p class="reveal mt-4 max-w-lg text-base leading-relaxed text-mute" style="--d:180ms">
+        A frosted glass orb that senses when you sit down, reads the room, listens, and glows to show what Athena is doing — all over a simple MQTT link to your PC.
+      </p>
+      <div class="reveal mt-8 flex flex-wrap gap-3" style="--d:240ms">
+        <a href="#how" class="rounded-full bg-gradient-to-r from-violet to-[#b39cff] px-6 py-3 text-sm font-semibold text-ink shadow-[0_10px_30px_-8px_rgba(143,114,255,.8)] transition hover:brightness-110">See how it works</a>
+        <a href="#parts" class="glass rounded-full px-6 py-3 text-sm font-semibold transition hover:border-violet" style="border-radius:999px">Parts list</a>
+      </div>
+      <dl class="reveal mt-10 grid max-w-md grid-cols-3 gap-3" style="--d:300ms">
+        <div class="glass px-4 py-3"><dt class="text-xs text-mute">LED ring</dt><dd class="mt-1 text-xl font-bold">16</dd></div>
+        <div class="glass px-4 py-3"><dt class="text-xs text-mute">Base, mm</dt><dd class="mt-1 text-xl font-bold">90 × 70</dd></div>
+        <div class="glass px-4 py-3"><dt class="text-xs text-mute">Input</dt><dd class="mt-1 text-xl font-bold">12 V</dd></div>
+      </dl>
+    </div>
+
+    <div id="orb-wrap" class="reveal" style="--d:150ms">
+      <div id="orb-stage" class="relative h-[340px] w-full sm:h-[460px] lg:h-[580px]" role="img"
+           aria-label="Interactive 3D model of the Athena Desk Orb: a frosted glass sphere with a ring of 16 glowing LEDs on a dark rounded base with a small OLED on the front.">
+        <div class="css-orb" aria-hidden="true"></div>
+      </div>
+      <div class="pills mt-2 flex flex-col items-center gap-3">
+        <div class="flex flex-wrap justify-center gap-2" role="group" aria-label="Preview Athena state">
+          <button class="pill" data-state="idle" aria-pressed="true">Idle</button>
+          <button class="pill" data-state="listening" aria-pressed="false">Listening</button>
+          <button class="pill" data-state="thinking" aria-pressed="false">Thinking</button>
+          <button class="pill" data-state="speaking" aria-pressed="false">Speaking</button>
+        </div>
+        <p class="text-xs text-mute">Live 3D preview · drag to orbit · state: <span id="orb-state" class="mono font-semibold text-amber">IDLE</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1. WHAT IT DOES -->
+  <section id="what" class="mx-auto max-w-6xl scroll-mt-20 px-5 py-16">
+    <p class="eyebrow reveal">01 · What it does</p>
+    <h2 class="reveal mt-3 text-3xl font-bold tracking-tight sm:text-4xl">A desk companion that pays attention.</h2>
+    <p class="reveal mt-3 max-w-2xl text-mute">Seven jobs, one small orb.</p>
+
+    <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <article class="glass reveal p-6 lg:col-span-2">
+        <div class="grid h-11 w-11 place-items-center rounded-xl bg-violet/15 text-violet"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.5 4.5a10.6 10.6 0 0 0 0 15M19.5 4.5a10.6 10.6 0 0 1 0 15"/></svg></div>
+        <h3 class="mt-4 text-lg font-semibold">Presence-aware</h3>
+        <p class="mt-2 text-sm leading-relaxed text-mute">An mmWave radar notices you sitting down — even when you're perfectly still — and wakes the orb. Walk away and it settles back to a quiet idle.</p>
+        <span class="chip mt-4">HLK-LD2410C</span>
+      </article>
+      <article class="glass reveal p-6" style="--d:60ms">
+        <div class="grid h-11 w-11 place-items-center rounded-xl bg-amber/15 text-amber"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></div>
+        <h3 class="mt-4 text-lg font-semibold">Ambient light aware</h3>
+        <p class="mt-2 text-sm leading-relaxed text-mute">Reads the room in lux so the glow dims at night and lifts in daylight.</p>
+        <span class="chip mt-4">BH1750</span>
+      </article>
+      <article class="glass reveal p-6" style="--d:120ms">
+        <div class="grid h-11 w-11 place-items-center rounded-xl bg-violet/15 text-violet"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/></svg></div>
+        <h3 class="mt-4 text-lg font-semibold">Room climate</h3>
+        <p class="mt-2 text-sm leading-relaxed text-mute">Temperature, humidity and pressure, measured in an external pod away from the warm electronics.</p>
+        <span class="chip mt-4">BME280</span>
+      </article>
+      <article class="glass reveal p-6">
+        <div class="grid h-11 w-11 place-items-center rounded-xl bg-amber/15 text-amber"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
+        <h3 class="mt-4 text-lg font-semibold">Listens</h3>
+        <p class="mt-2 text-sm leading-relaxed text-mute">A digital I²S MEMS microphone gives Athena ears on your desk.</p>
+        <span class="chip mt-4">INMP441</span>
+      </article>
+      <article class="glass reveal p-6" style="--d:60ms">
+        <div class="grid h-11 w-11 place-items-center rounded-xl bg-violet/15 text-violet"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h6M7 14h3"/></svg></div>
+        <h3 class="mt-4 text-lg font-semibold">Shows status</h3>
+        <p class="mt-2 text-sm leading-relaxed text-mute">A 0.96″ OLED on the front of the base spells out what the orb is doing.</p>
+        <span class="chip mt-4">SSD1306</span>
+      </article>
+      <article class="glass reveal p-6" style="--d:120ms">
+        <div class="grid h-11 w-11 place-items-center rounded-xl bg-amber/15 text-amber"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8" stroke-dasharray="2 3.2"/></svg></div>
+        <h3 class="mt-4 text-lg font-semibold">Glows with Athena</h3>
+        <p class="mt-2 text-sm leading-relaxed text-mute">Sixteen LEDs chase and pulse for listening, thinking and speaking.</p>
+        <span class="chip mt-4">WS2812B ×16</span>
+      </article>
+      <article class="glass reveal p-6 sm:col-span-2 lg:col-span-1" style="--d:180ms">
+        <div class="grid h-11 w-11 place-items-center rounded-xl bg-violet/15 text-violet"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg></div>
+        <h3 class="mt-4 text-lg font-semibold">Controls your desk light</h3>
+        <p class="mt-2 text-sm leading-relaxed text-mute">Switches and dims a 12 V warm-white COB strip on command.</p>
+        <span class="chip mt-4">IRLZ44N</span>
+      </article>
+    </div>
+  </section>
+
+  <!-- 2. HOW IT WORKS -->
+  <section id="how" class="mx-auto max-w-6xl scroll-mt-20 px-5 py-16">
+    <p class="eyebrow reveal">02 · How it works</p>
+    <h2 class="reveal mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Four hops from sensor to assistant.</h2>
+    <p class="reveal mt-3 max-w-2xl text-mute">The orb is a thin Wi-Fi client. Everything it senses and every command it receives travels through a Mosquitto broker running on the PC.</p>
+
+    <div class="reveal mt-10 flex flex-col items-stretch gap-3 lg:flex-row lg:items-center lg:justify-between" role="img"
+         aria-label="Diagram: ESP32 orb connects over Wi-Fi to an MQTT broker (Mosquitto on the PC), which connects to Athena.">
+      <div class="glass flex-1 p-5 text-center">
+        <p class="eyebrow">Device</p>
+        <p class="mt-2 text-lg font-semibold">ESP32 Orb</p>
+        <p class="mt-1 text-sm text-mute">Sensors, LED ring, OLED</p>
+      </div>
+      <div class="link"><span>Wi-Fi</span>
+        <svg class="lg:hidden" width="16" height="40"><use href="#ar-v2"/></svg>
+        <svg class="hidden lg:block" width="64" height="16"><use href="#ar-h2"/></svg></div>
+      <div class="glass flex-1 p-5 text-center">
+        <p class="eyebrow">Broker</p>
+        <p class="mt-2 text-lg font-semibold">MQTT · Mosquitto</p>
+        <p class="mt-1 text-sm text-mute">Runs on the PC</p>
+      </div>
+      <div class="link"><span>MQTT</span>
+        <svg class="lg:hidden" width="16" height="40"><use href="#ar-v2"/></svg>
+        <svg class="hidden lg:block" width="64" height="16"><use href="#ar-h2"/></svg></div>
+      <div class="glass flex-1 p-5 text-center">
+        <p class="eyebrow">Brain</p>
+        <p class="mt-2 text-lg font-semibold">Athena</p>
+        <p class="mt-1 text-sm text-mute">The AI assistant on the PC</p>
+      </div>
+    </div>
+
+    <div class="glass reveal mt-6 overflow-x-auto">
+      <table class="w-full min-w-[560px] text-left text-sm">
+        <caption class="sr-only">MQTT topics</caption>
+        <thead><tr><th class="px-5 py-4">Topic</th><th class="px-5 py-4">Carries</th></tr></thead>
+        <tbody>
+          <tr><td class="mono whitespace-nowrap px-5 py-3.5 text-amber">athena/orb/state</td><td class="px-5 py-3.5 text-mute">Athena's state — drives the LED ring animation and the OLED text.</td></tr>
+          <tr><td class="mono whitespace-nowrap px-5 py-3.5 text-amber">athena/orb/listen</td><td class="px-5 py-3.5 text-mute">Listening control between the orb (button, microphone) and Athena.</td></tr>
+          <tr><td class="mono whitespace-nowrap px-5 py-3.5 text-amber">athena/desk/*</td><td class="px-5 py-3.5 text-mute">The desk: presence, light level and climate readings from the orb, plus commands for the COB strip.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 3. PINOUT -->
+  <section id="pinout" class="mx-auto max-w-6xl scroll-mt-20 px-5 py-16">
+    <p class="eyebrow reveal">03 · Pinout</p>
+    <h2 class="reveal mt-3 text-3xl font-bold tracking-tight sm:text-4xl">ESP32 GPIO map.</h2>
+    <p class="reveal mt-3 max-w-2xl text-mute">Eleven pins carry the whole build.</p>
+
+    <div class="glass reveal mt-10 overflow-x-auto">
+      <table class="w-full min-w-[560px] text-left text-sm">
+        <caption class="sr-only">ESP32 pin assignments</caption>
+        <thead><tr><th class="px-5 py-4">Peripheral</th><th class="px-5 py-4">Signal</th><th class="px-5 py-4 text-right">GPIO</th><th class="px-5 py-4">Notes</th></tr></thead>
+        <tbody>
+          <tr><td class="px-5 py-3.5 font-medium">WS2812B ring</td><td class="px-5 py-3.5 text-mute">Data</td><td class="mono px-5 py-3.5 text-right font-semibold text-amber">13</td><td class="px-5 py-3.5 text-mute">330 Ω series resistor; 1000 µF capacitor across the ring supply</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">PBS-33B button</td><td class="px-5 py-3.5 text-mute">Input</td><td class="mono px-5 py-3.5 text-right font-semibold text-amber">0</td><td class="px-5 py-3.5 text-mute">Boot-strapping pin: don't hold it low at reset unless you mean to flash</td></tr>
+          <tr class="border-t-2 border-white/10"><td class="px-5 py-3.5 font-medium" rowspan="3">INMP441 mic</td><td class="px-5 py-3.5 text-mute">SCK</td><td class="mono px-5 py-3.5 text-right font-semibold text-amber">26</td><td class="px-5 py-3.5 text-mute" rowspan="3">I²S bus</td></tr>
+          <tr><td class="px-5 py-3.5 text-mute">WS</td><td class="mono px-5 py-3.5 text-right font-semibold text-amber">25</td></tr>
+          <tr><td class="px-5 py-3.5 text-mute">SD</td><td class="mono px-5 py-3.5 text-right font-semibold text-amber">33</td></tr>
+          <tr class="border-t-2 border-white/10"><td class="px-5 py-3.5 font-medium" rowspan="2">I²C bus</td><td class="px-5 py-3.5 text-mute">SDA</td><td class="mono px-5 py-3.5 text-right font-semibold text-amber">21</td><td class="px-5 py-3.5 text-mute" rowspan="2">OLED, BH1750 and BME280 share the bus</td></tr>
+          <tr><td class="px-5 py-3.5 text-mute">SCL</td><td class="mono px-5 py-3.5 text-right font-semibold text-amber">22</td></tr>
+          <tr class="border-t-2 border-white/10"><td class="px-5 py-3.5 font-medium" rowspan="3">HLK-LD2410C radar</td><td class="px-5 py-3.5 text-mute">UART</td><td class="mono px-5 py-3.5 text-right font-semibold text-amber">16</td><td class="px-5 py-3.5 text-mute" rowspan="2">Serial link for radar data</td></tr>
+          <tr><td class="px-5 py-3.5 text-mute">UART</td><td class="mono px-5 py-3.5 text-right font-semibold text-amber">17</td></tr>
+          <tr><td class="px-5 py-3.5 text-mute">OUT</td><td class="mono px-5 py-3.5 text-right font-semibold text-amber">27</td><td class="px-5 py-3.5 text-mute">Presence output</td></tr>
+          <tr class="border-t-2 border-white/10"><td class="px-5 py-3.5 font-medium">Desk strip</td><td class="px-5 py-3.5 text-mute">MOSFET gate</td><td class="mono px-5 py-3.5 text-right font-semibold text-amber">18</td><td class="px-5 py-3.5 text-mute">IRLZ44N switching the 12 V COB strip</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="reveal mt-4 grid gap-3 sm:grid-cols-3">
+      <div class="glass flex items-center justify-between px-5 py-4"><span class="text-sm text-mute">OLED SSD1306</span><span class="mono font-semibold text-violet">0x3C</span></div>
+      <div class="glass flex items-center justify-between px-5 py-4"><span class="text-sm text-mute">BH1750</span><span class="mono font-semibold text-violet">0x23</span></div>
+      <div class="glass flex items-center justify-between px-5 py-4"><span class="text-sm text-mute">BME280 (external pod)</span><span class="mono font-semibold text-violet">0x76</span></div>
+    </div>
+  </section>
+
+  <!-- 4. POWER -->
+  <section id="power" class="mx-auto max-w-6xl scroll-mt-20 px-5 py-16">
+    <p class="eyebrow reveal">04 · Power</p>
+    <h2 class="reveal mt-3 text-3xl font-bold tracking-tight sm:text-4xl">One 12 V input, two rails.</h2>
+    <p class="reveal mt-3 max-w-2xl text-mute">A fused 12 V feed is split: a buck converter makes 5 V for the logic and LED ring, while the desk strip runs straight from 12 V through a logic-level MOSFET.</p>
+
+    <div class="reveal mt-10 flex flex-col items-stretch gap-3 lg:flex-row lg:items-center" role="img"
+         aria-label="Power flow: 12 volt 5 amp adapter into a 2 amp inline fuse, then splitting to an MP1584 buck converter feeding the ESP32 and LED ring at 5 volts, and to an IRLZ44N MOSFET switching the 12 volt COB strip.">
+      <div class="glass p-5 text-center lg:w-48">
+        <p class="eyebrow">Source</p>
+        <p class="mt-2 font-semibold">12 V 5 A adapter</p>
+        <p class="mt-1 text-sm text-mute">2.1×5.5 mm DC jack</p>
+      </div>
+      <div class="link"><svg class="lg:hidden" width="16" height="40"><use href="#ar-v1"/></svg><svg class="hidden lg:block" width="64" height="16"><use href="#ar-h1"/></svg></div>
+      <div class="glass p-5 text-center lg:w-40">
+        <p class="eyebrow">Protection</p>
+        <p class="mt-2 font-semibold">Inline fuse</p>
+        <p class="mt-1 text-sm text-mute">2 A</p>
+      </div>
+      <div class="link"><svg class="lg:hidden" width="16" height="40"><use href="#ar-v1"/></svg><svg class="hidden lg:block" width="64" height="16"><use href="#ar-h1"/></svg></div>
+
+      <div class="flex flex-1 flex-col gap-3">
+        <div class="glass lane-violet flex flex-col items-center gap-2 p-4 lg:flex-row">
+          <span class="chip shrink-0" style="color:#c7b8ff">5 V rail</span>
+          <div class="w-full flex-1 rounded-xl bg-white/5 p-3 text-center text-fg"><p class="font-semibold">MP1584 buck</p><p class="text-sm text-mute">12 V → 5 V</p></div>
+          <svg class="lg:hidden" width="16" height="40"><use href="#ar-v1"/></svg><svg class="hidden shrink-0 lg:block" width="64" height="16"><use href="#ar-h1"/></svg>
+          <div class="w-full flex-1 rounded-xl bg-white/5 p-3 text-center text-fg"><p class="font-semibold">ESP32 + LED ring</p><p class="text-sm text-mute">1000 µF across the ring</p></div>
+        </div>
+        <div class="glass lane-amber flex flex-col items-center gap-2 p-4 lg:flex-row">
+          <span class="chip shrink-0" style="color:#ffd08a">12 V rail</span>
+          <div class="w-full flex-1 rounded-xl bg-white/5 p-3 text-center text-fg"><p class="font-semibold">IRLZ44N MOSFET</p><p class="text-sm text-mute">Gate ← GPIO 18</p></div>
+          <svg class="lg:hidden" width="16" height="40"><use href="#ar-v1"/></svg><svg class="hidden shrink-0 lg:block" width="64" height="16"><use href="#ar-h1"/></svg>
+          <div class="w-full flex-1 rounded-xl bg-white/5 p-3 text-center text-fg"><p class="font-semibold">COB strip</p><p class="text-sm text-mute">1 m warm white</p></div>
+        </div>
+      </div>
+    </div>
+    <p class="reveal mt-4 text-sm text-mute">Both rails share a common ground, so the ESP32's 3.3 V logic can drive the MOSFET gate.</p>
+  </section>
+
+  <!-- 5. PARTS -->
+  <section id="parts" class="mx-auto max-w-6xl scroll-mt-20 px-5 py-16">
+    <p class="eyebrow reveal">05 · Parts list</p>
+    <h2 class="reveal mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Everything in the build.</h2>
+
+    <div class="glass reveal mt-10 overflow-x-auto">
+      <table class="w-full min-w-[560px] text-left text-sm">
+        <caption class="sr-only">Parts list with quantities and roles</caption>
+        <thead><tr><th class="px-5 py-4">Part</th><th class="px-5 py-4 text-center">Qty</th><th class="px-5 py-4">Role</th></tr></thead>
+        <tbody>
+          <tr><td class="px-5 py-3.5 font-medium">ESP32 dev board</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">Brains: Wi-Fi and MQTT client</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">WS2812B 16-LED ring</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">The glow inside the dome</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">0.96″ I²C OLED (SSD1306)</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">Status readout on the base</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">GY-302 BH1750</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">Ambient light sensor</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">HLK-LD2410C radar</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">mmWave presence sensor</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">BME280</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">Temperature, humidity, pressure</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">INMP441 I²S mic</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">Microphone</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">Mini MP1584 buck</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">12 V to 5 V regulator</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">IRLZ44N MOSFET</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">Logic-level switch for the strip</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">12 V 5 A adapter</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">Main power supply</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">2.1×5.5 mm DC jack</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">Power input socket</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">Inline fuse holder + 2 A fuse</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">Overcurrent protection</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">PBS-33B 12 mm button</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">User input</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">1000 µF 16 V capacitors</td><td class="mono px-5 py-3.5 text-center">2</td><td class="px-5 py-3.5 text-mute">Supply smoothing</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">Resistor kit</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">330 Ω data resistor and spares</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">3×7 cm protoboards</td><td class="mono px-5 py-3.5 text-center">2</td><td class="px-5 py-3.5 text-mute">Circuit mounting</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">1 m 12 V warm-white COB strip</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">Desk light</td></tr>
+          <tr><td class="px-5 py-3.5 font-medium">A60 plastic bulb dome</td><td class="mono px-5 py-3.5 text-center">1</td><td class="px-5 py-3.5 text-mute">Orb shell and diffuser</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </main>
+
+<footer class="border-t border-white/5">
+  <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-5 py-8 text-sm text-mute sm:flex-row">
+    <p class="flex items-center gap-2 font-medium text-fg"><span class="h-3 w-3 rounded-full bg-gradient-to-br from-amber to-violet shadow-[0_0_12px_2px_rgba(143,114,255,.6)]"></span>Built with Athena</p>
+    <p>Personal project - a work in progress</p>
+  </div>
+</footer>
+
+<!-- scroll reveal (independent of the 3D scene) -->
+<script>
+  (function () {
+    var els = document.querySelectorAll('.reveal');
+    if (!('IntersectionObserver' in window)) { els.forEach(function (e) { e.classList.add('in'); }); return; }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { threshold: 0.12, rootMargin: '0px 0px -5% 0px' });
+    els.forEach(function (e) { io.observe(e); });
+  })();
+</script>
+
+<!-- 3D orb -->
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const wrap = document.getElementById('orb-wrap');
+const host = document.getElementById('orb-stage');
+const stateLabel = document.getElementById('orb-state');
+const pills = [...document.querySelectorAll('[data-state]')];
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+try { init(); } catch (err) { console.warn('WebGL orb unavailable, showing CSS orb instead.', err); }
+
+function init() {
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  host.appendChild(renderer.domElement);
+  renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); wrap.classList.remove('gl-ready'); });
+  renderer.domElement.addEventListener('webglcontextrestored', () => wrap.classList.add('gl-ready'));
+
+  const scene = new THREE.Scene();
+  scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+  camera.position.set(0, 1.15, 5.2);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0.55, 0);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.06;
+  controls.enableZoom = false;          // never hijack page scroll
+  controls.enablePan = false;
+  controls.minPolarAngle = 0.6;
+  controls.maxPolarAngle = 1.52;
+  controls.autoRotate = !reduce;
+  controls.autoRotateSpeed = 0.9;
+  renderer.domElement.style.touchAction = 'pan-y';   // vertical swipes still scroll the page on phones
+
+  // ---- colours & states ----
+  const col = h => new THREE.Color(h);
+  const STATES = {
+    idle:      { label: 'IDLE',      a: col(0xffb454), b: col(0x8f72ff) },
+    listening: { label: 'LISTENING', a: col(0x8f72ff), b: col(0xc7b8ff) },
+    thinking:  { label: 'THINKING',  a: col(0xffd08a), b: col(0x8f72ff) },
+    speaking:  { label: 'SPEAKING',  a: col(0xffa23a), b: col(0xa68bff) },
+  };
+  const ORDER = ['idle', 'listening', 'thinking', 'speaking'];
+  let state = 'idle', cycle;
+
+  // ---- helpers ----
+  const glowCanvas = document.createElement('canvas');
+  glowCanvas.width = glowCanvas.height = 128;
+  { const g = glowCanvas.getContext('2d'), r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.25, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = r; g.fillRect(0, 0, 128, 128); }
+  const glowTex = new THREE.CanvasTexture(glowCanvas);
+  glowTex.colorSpace = THREE.SRGBColorSpace;
+  const makeSprite = (scale, opacity) => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending,
+      transparent: true, depthWrite: false, depthTest: false, opacity }));
+    s.scale.setScalar(scale); s.renderOrder = 10; return s;
+  };
+
+  // ---- model ----
+  const rig = new THREE.Group();
+  scene.add(rig);
+
+  const BASE_H = 0.38, R = 0.62, CY = BASE_H / 2 + 0.5;       // base 1.8 x 1.4 units = 90 x 70 mm
+  const base = new THREE.Mesh(new RoundedBoxGeometry(1.8, BASE_H, 1.4, 6, 0.13),
+    new THREE.MeshStandardMaterial({ color: 0x17151f, roughness: 0.5, metalness: 0.35, envMapIntensity: 0.6 }));
+  rig.add(base);
+
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.56, 0.08, 64),
+    new THREE.MeshStandardMaterial({ color: 0x0d0c13, roughness: 0.35, metalness: 0.7, envMapIntensity: 0.6 }));
+  collar.position.y = BASE_H / 2 + 0.04;
+  rig.add(collar);
+
+  // OLED strip on the front face (+z)
+  const oc = document.createElement('canvas'); oc.width = 256; oc.height = 64;
+  const og = oc.getContext('2d');
+  const oledTex = new THREE.CanvasTexture(oc);
+  oledTex.colorSpace = THREE.SRGBColorSpace;
+  const MONO = 'ui-monospace, Menlo, Consolas, monospace';
+  function drawOled(text) {
+    og.fillStyle = '#050408'; og.fillRect(0, 0, 256, 64);
+    og.textBaseline = 'top';
+    og.fillStyle = '#8f72ff'; og.font = `600 13px ${MONO}`; og.fillText('ATHENA', 12, 9);
+    og.fillStyle = '#ffb454'; og.font = `700 26px ${MONO}`; og.fillText(text, 12, 28);
+    og.fillStyle = 'rgba(143,114,255,.5)'; og.fillRect(12, 58, 232, 2);
+    oledTex.needsUpdate = true;
+  }
+  const bezel = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.17, 0.02),
+    new THREE.MeshStandardMaterial({ color: 0x050409, roughness: 0.3, metalness: 0.5 }));
+  bezel.position.set(0, 0, 0.705);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.13),
+    new THREE.MeshBasicMaterial({ map: oledTex, toneMapped: false }));
+  screen.position.set(0, 0, 0.7165);
+  rig.add(bezel, screen);
+
+  // frosted glass sphere
+  const glass = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 48), new THREE.MeshPhysicalMaterial({
+    color: 0xffffff, transmission: 1, roughness: 0.4, thickness: 0.6, ior: 1.45,
+    clearcoat: 0.6, clearcoatRoughness: 0.25, specularIntensity: 0.6, envMapIntensity: 0.4,
+    attenuationColor: new THREE.Color(0xc9a8ff), attenuationDistance: 2.5 }));
+  glass.position.y = CY;
+  rig.add(glass);
+
+  // inner core + halos
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0xffb454, toneMapped: false });
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 24), coreMat);
+  core.position.y = CY;
+  const haloBig = makeSprite(3.0, 0.3), haloCore = makeSprite(1.5, 0.35);
+  haloBig.position.y = haloCore.position.y = CY;
+  const coreLight = new THREE.PointLight(0xffb454, 2.5, 0, 2);
+  coreLight.position.y = CY;
+  rig.add(core, haloBig, haloCore, coreLight);
+
+  // soft glow on the "desk" around the base
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshBasicMaterial({
+    map: glowTex, color: 0xffb454, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.4 }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -BASE_H / 2 - 0.005;
+  rig.add(floor);
+
+  // 16 LED beads on the equator
+  const N = 16, ring = new THREE.Group();
+  ring.position.y = CY;
+  const beadGeo = new THREE.SphereGeometry(0.032, 14, 14);
+  const beads = [];
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const mesh = new THREE.Mesh(beadGeo, new THREE.MeshBasicMaterial({ color: 0xffb454, toneMapped: false }));
+    mesh.position.set(Math.cos(a) * 0.5, 0, Math.sin(a) * 0.5);
+    const halo = makeSprite(0.2, 0.5);
+    halo.position.copy(mesh.position);
+    ring.add(mesh, halo);
+    beads.push({ mesh, halo, col: new THREE.Color(0xffb454), val: 0.3 });
+  }
+  rig.add(ring);
+
+  // lights
+  scene.add(new THREE.AmbientLight(0x8f72ff, 0.15));
+  const key = new THREE.DirectionalLight(0xbfb0ff, 1.2); key.position.set(-3, 4, 3);
+  const rim = new THREE.DirectionalLight(0xffb454, 1.4); rim.position.set(3, 2, -3);
+  scene.add(key, rim);
+
+  // ---- state handling ----
+  function setState(s) {
+    state = s;
+    stateLabel.textContent = STATES[s].label;
+    drawOled(STATES[s].label);
+    pills.forEach(p => p.setAttribute('aria-pressed', String(p.dataset.state === s)));
+    clearInterval(cycle);
+    cycle = setInterval(() => setState(ORDER[(ORDER.indexOf(state) + 1) % ORDER.length]), 5000);
+  }
+  pills.forEach(p => p.addEventListener('click', () => setState(p.dataset.state)));
+  setState('idle');
+
+  // ---- animation ----
+  const TAU = Math.PI * 2, clock = new THREE.Clock();
+  const mix = new THREE.Color(), coreCol = new THREE.Color(0xffb454);
+  let time = 0, px = 0, py = 0;
+
+  addEventListener('pointermove', e => {
+    const r = host.getBoundingClientRect();
+    px = THREE.MathUtils.clamp(((e.clientX - r.left) / r.width - 0.5) * 2, -1.5, 1.5);
+    py = THREE.MathUtils.clamp(((e.clientY - r.top) / r.height - 0.5) * 2, -1.5, 1.5);
+  }, { passive: true });
+
+  function update() {
+    const dt = Math.min(clock.getDelta(), 0.05);
+    time += dt;
+    const t = reduce ? 1.3 : time;           // reduced motion: frozen pose, colours still follow the state
+    const f = 1 - Math.exp(-dt * 6);
+    const st = STATES[state];
+    let sum = 0;
+
+    for (let i = 0; i < N; i++) {
+      const p = i / N, bd = beads[i];
+      let b, k;
+      if (state === 'idle') {
+        const d = (((p - (t * 0.15) % 1) % 1) + 1) % 1;
+        b = 0.3 + 0.7 * Math.exp(-d * 4);
+        k = 0.5 + 0.5 * Math.sin(p * TAU + t * 0.3);
+      } else if (state === 'listening') {
+        b = 0.5 + 0.35 * Math.sin(t * 2.4 + p * 1.2);
+        k = 0.5 + 0.5 * Math.sin(p * TAU + t * 0.4);
+      } else if (state === 'thinking') {
+        const d = ((((t * 0.8) % 1 - p) % 1) + 1) % 1;
+        b = 0.1 + 0.9 * Math.exp(-d * 6);
+        k = Math.min(1, d * 3);
+      } else {
+        const amp = 0.6 + 0.4 * Math.sin(t * 3.1) ** 2;
+        b = 0.15 + 0.85 * (0.5 + 0.5 * Math.sin(t * 8 + p * TAU * 2)) * amp;
+        k = b;
+      }
+      mix.copy(st.a).lerp(st.b, k);
+      bd.col.lerp(mix, f);
+      bd.val += (b - bd.val) * f;
+      sum += bd.val;
+      bd.mesh.material.color.copy(bd.col).multiplyScalar(0.2 + 0.9 * bd.val);
+      bd.halo.material.color.copy(bd.col);
+      bd.halo.material.opacity = 0.15 + 0.6 * bd.val;
+      bd.halo.scale.setScalar(0.12 + 0.2 * bd.val);
+    }
+
+    const avg = sum / N;
+    mix.copy(st.a).lerp(st.b, 0.5 + 0.5 * Math.sin(t * 0.6));
+    coreCol.lerp(mix, f);
+    coreMat.color.copy(coreCol).multiplyScalar(0.7 + 0.6 * avg);
+    haloBig.material.color.copy(coreCol); haloBig.material.opacity = 0.2 + 0.16 * avg;
+    haloCore.material.color.copy(coreCol); haloCore.material.opacity = 0.25 + 0.2 * avg;
+    floor.material.color.copy(coreCol);
+    coreLight.color.copy(coreCol); coreLight.intensity = 1.6 + 1.6 * avg;
+
+    if (!reduce) {                            // slight pointer tilt
+      rig.rotation.x += (py * 0.07 - rig.rotation.x) * 0.06;
+      rig.rotation.z += (-px * 0.07 - rig.rotation.z) * 0.06;
+    }
+  }
+
+  // ---- sizing, visibility, loop ----
+  function resize() {
+    const w = host.clientWidth, h = host.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    const dir = camera.position.clone().sub(controls.target);
+    dir.setLength(Math.max(5.2, 5.6 / camera.aspect));        // keep the base in frame on narrow screens
+    camera.position.copy(controls.target).add(dir);
+  }
+  new ResizeObserver(resize).observe(host);
+  resize();
+
+  let visible = true, running = false, ready = false;
+  function frame() {
+    if (!visible || document.hidden) { running = false; return; }
+    requestAnimationFrame(frame);
+    update();
+    controls.update();
+    renderer.render(scene, camera);
+    if (!ready) { ready = true; wrap.classList.add('gl-ready'); }
+  }
+  function kick() {
+    if (visible && !document.hidden && !running) { running = true; clock.getDelta(); requestAnimationFrame(frame); }
+  }
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; kick(); }).observe(host);
+  document.addEventListener('visibilitychange', kick);
+  kick();
+}
+</script>
 </body>
 </html>
