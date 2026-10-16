@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Athena Desk Orb</title>
+<style>
+  :root { --bg:#0b0d14; --card:#141824; --text:#e6e9f2; --muted:#8b93a7; --glow:#7c5cff; --glow2:#29d3ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 system-ui,sans-serif; }
+  main { max-width:860px; margin:0 auto; padding:0 20px 60px; }
+  header { text-align:center; padding:70px 0 30px; }
+  .orb { width:120px; height:120px; margin:0 auto 28px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff8, var(--glow) 40%, var(--glow2) 100%);
+    box-shadow:0 0 40px var(--glow), 0 0 100px var(--glow2); animation:pulse 4s ease-in-out infinite; }
+  @keyframes pulse { 50% { box-shadow:0 0 60px var(--glow), 0 0 140px var(--glow2); } }
+  @media (prefers-reduced-motion:reduce) { .orb { animation:none; } }
+  h1 { margin:0 0 10px; font-size:2.4rem; }
+  header p { color:var(--muted); max-width:560px; margin:0 auto; }
+  h2 { margin-top:56px; border-bottom:1px solid #222a3d; padding-bottom:8px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+  .card { background:var(--card); border:1px solid #222a3d; border-radius:12px; padding:18px; }
+  .card h3 { margin:0 0 6px; color:var(--glow2); font-size:1.05rem; }
+  .card p { margin:0; color:var(--muted); font-size:.95rem; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border-radius:12px; overflow:hidden; }
+  th, td { text-align:left; padding:12px 14px; border-bottom:1px solid #222a3d; }
+  th { color:var(--glow2); font-size:.85rem; text-transform:uppercase; letter-spacing:.05em; }
+  tr:last-child td { border-bottom:0; }
+  td:nth-child(2) { text-align:center; }
+  th:nth-child(2) { text-align:center; }
+  td:last-child { color:var(--muted); }
+  footer { text-align:center; color:var(--muted); font-size:.85rem; margin-top:50px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="orb" role="img" aria-label="Glowing orb"></div>
+    <h1>Athena Desk Orb</h1>
+    <p>A glowing ESP32 orb that sits on your desk and acts as a little ambient companion for your PC. It notices when you're there, adapts to the room's light, and talks to your computer over MQTT.</p>
+  </header>
+
+  <h2>Features</h2>
+  <div class="grid">
+    <div class="card"><h3>LED ring glow</h3><p>Colour and brightness show status and mood, driven by messages from the PC.</p></div>
+    <div class="card"><h3>OLED readout</h3><p>Small display for time, status text and notifications.</p></div>
+    <div class="card"><h3>Presence sensing</h3><p>A radar sensor detects when you sit down or walk away, even when you're sitting still.</p></div>
+    <div class="card"><h3>Ambient light aware</h3><p>The light sensor dims the orb at night and brightens it by day.</p></div>
+    <div class="card"><h3>MQTT link</h3><p>Publishes sensor data and subscribes to commands, so the PC and orb stay in sync over Wi-Fi.</p></div>
+  </div>
+
+  <h2>Parts list</h2>
+  <table>
+    <thead><tr><th>Part</th><th>Qty</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td>ESP32 dev board</td><td>1</td><td>Brains, Wi-Fi, MQTT client</td></tr>
+      <tr><td>WS2812B 16-LED ring</td><td>1</td><td>The glow</td></tr>
+      <tr><td>0.96&Prime; I²C OLED (SSD1306)</td><td>1</td><td>Status and text</td></tr>
+      <tr><td>GY-302 BH1750 light sensor</td><td>1</td><td>Ambient brightness</td></tr>
+      <tr><td>HLK-LD2410C radar</td><td>1</td><td>Presence detection</td></tr>
+      <tr><td>BME280</td><td>1</td><td>Temperature, humidity, pressure</td></tr>
+      <tr><td>INMP441 I²S mic</td><td>1</td><td>Sound input</td></tr>
+      <tr><td>Mini MP1584 buck (12 V to 5 V)</td><td>1</td><td>Powers the ESP32 and LED ring</td></tr>
+      <tr><td>IRLZ44N MOSFET</td><td>1</td><td>Switches the 12 V warm-white COB strip</td></tr>
+      <tr><td>12 V warm-white COB strip</td><td>1</td><td>Warm ambient light</td></tr>
+      <tr><td>12 V 5 A adapter</td><td>1</td><td>Main power supply</td></tr>
+      <tr><td>PBS-33B 12 mm button</td><td>1</td><td>User input</td></tr>
+    </tbody>
+  </table>
+
+  <footer>Athena Desk Orb · ESP32 + MQTT</footer>
+</main>
+</body>
+</html>
